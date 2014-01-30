@@ -136,6 +136,7 @@ int stickState = false;
 
 int altControlSet = false;
 int stickXY = false;
+int fullLegatoMode = false;
 
 int minDurationOpen = 75;
 int minVelocity = 75;
@@ -208,11 +209,19 @@ void loop() {
 
  determineFrets();
  
- //test for legato action
- legatoTest();
+ //if we are in full legato mode, run the function
+ if (fullLegatoMode) {
+   fullLegato();
+ }
  
- //use this info to determine which notes to pluck
- pickNotes();
+ //otherwise just do the regular thing
+ else {
+   //test for legato action
+   legatoTest();
+ 
+   //use this info to determine which notes to pluck
+   pickNotes();
+ }
  
  //send not off messages and reset necessary things
  cleanUp();
@@ -361,6 +370,51 @@ void legatoTest() {
   }
 }
 
+void fullLegato() {
+  for (int i=0; i<NUM_STRINGS; i++) {
+    if (fretTouched[i]) {
+      
+      switch (i) {
+        case 0:
+          noteFretted[i] = fretTouched[i] + offsets[i];
+          break;
+        case 1:
+          noteFretted[i] = fretTouched[i] + offsets[i];
+          break;
+        case 2:
+          noteFretted[i] = fretTouched[i] + offsets[i];
+          break;
+      }
+      
+      int vel = 80;
+      
+      if (!stringActive[i]) {
+        noteOn(noteFretted[i], vel);
+        
+        //register new note as the active one
+        activeNotes[i] = (Note *) malloc(sizeof(Note));
+        activeNotes[i]->init(noteFretted[i], vel, millis(), true);
+        stringActive[i] = true;
+      }
+      else {
+        
+        if (noteFretted[i] != activeNotes[i]->number()) {
+          int vel = 80;
+          noteOn(noteFretted[i], vel);
+          
+          //turn off old note
+          noteOff(activeNotes[i]->number(), 0);
+          free(activeNotes[i]);
+        
+          //register new note as the active one
+          activeNotes[i] = (Note *) malloc(sizeof(Note));
+          activeNotes[i]->init(noteFretted[i], vel, millis(), true);
+        }
+      }
+    }
+  }
+}
+
 void cleanUp() {
   for (int i=0; i< NUM_STRINGS; i++) {
     
@@ -426,7 +480,18 @@ void readControls() {
     }
   }
   
+  //-----ENGAGE FULL LEGATO MODE-----
+  //removes the need for triggering with piezo for fretted notes
+  if (digitalRead(PIN_BUTTON_LEFT) == LOW && !buttonStates[LEFT]) {
+    fullLegatoMode = true;
+    buttonStates[LEFT] = true;
+  }
+  if (digitalRead(PIN_BUTTON_LEFT) == HIGH && buttonStates[LEFT]) {
+    fullLegatoMode = false;
+    buttonStates[LEFT] = false;
+  }
   
+  /*
   //switch to alt control set
   if (digitalRead(PIN_BUTTON_LEFT) == LOW && !buttonStates[LEFT]) {
     altControlSet = !altControlSet;
@@ -434,7 +499,6 @@ void readControls() {
   }
   if (digitalRead(PIN_BUTTON_LEFT) == HIGH && buttonStates[LEFT]) buttonStates[LEFT] = false;
   
-  /*
   //Right button triggers calibration
   if (digitalRead(PIN_BUTTON_RIGHT) == LOW && !buttonStates[RIGHT]) {
         buttonStates[RIGHT] = true;
